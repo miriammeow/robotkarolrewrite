@@ -3,10 +3,32 @@
 #define ARROWKEYS_LEFT 'j'
 #define ARROWKEYS_RIGHT 'l'
 
+#define c_RESET   "\x1b[0m"
+#define c_RED     "\x1b[31m"
+#define c_GREEN   "\x1b[32m"
+#define c_YELLOW  "\x1b[33m"
+#define c_BLUE    "\x1b[34m"
+#define c_MAGENTA "\x1b[35m"
+#define c_CYAN    "\x1b[36m"
+#define c_WHITE   "\x1b[37m"
+
 //Instant Input Functionality Comes Here
 
 #ifdef _WIN32
 #include <conio.h>
+#include <windows.h>
+
+void enableAnsiEscapeCodes() {
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut == INVALID_HANDLE_VALUE) return;
+
+    DWORD dwMode = 0;
+    if (!GetConsoleMode(hOut, &dwMode)) return;
+
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(hOut, dwMode);
+}
+
 #else
 #include <unistd.h>
 #include <termios.h>
@@ -48,6 +70,11 @@ Missing:
 #include <stdlib.h> //Required for memory allocation
 
 //enums
+typedef enum Mode {
+    PLAYERCONTROL,
+    FILECONTROL
+} Mode;
+
 enum Direction { //Player Directions
     RIGHT,
     DOWN,
@@ -60,9 +87,8 @@ enum MarkerColor {
     GREEN,
     YELLOW,
     BLUE,
-    BLACK,
-    PINK,
-    PURPLE
+    WHITE,
+    MAGENTA
 };
 
 enum PlayerAction { //Player Actions
@@ -119,20 +145,45 @@ int movement_boundary_check(Field* this, char c);
 
 
 int main(int argc, char** argv) {
+
+    #ifdef _WIN32
+    enableAnsiEscapeCodes();
+    #endif
     
     Field myField;
+    Mode myMode;
     int width = 0;
     int height = 0;
 
-    if (argc == 3) {
-        width = atoi(argv[1]);
-        height = atoi(argv[2]);
-        Field_Init(&myField, height, width);
-    } else {
-        Field_Init(&myField, 9, 16);
+    switch (argc) {
+        case 3:
+            width = atoi(argv[1]);
+            height = atoi(argv[2]);
+            Field_Init(&myField, height, width);
+            myMode = PLAYERCONTROL;
+            break;
+        case 4:
+            width = atoi(argv[1]);
+            height = atoi(argv[2]);
+            Field_Init(&myField, height, width);
+
+            // EXPAND HERE
+
+            myMode = FILECONTROL;
+            break;
+        case 1:
+            Field_Init(&myField, 9, 16);
+            myMode = FILECONTROL;
+            break;
+        default:
+            printf("Invalid usage of program, type: robotkarolrewrite <width> <height> [optional file name for some_program.rkr]\n Loading Standard Field...\n");
+            Field_Init(&myField, 9, 16);
+            myMode = FILECONTROL;
+            break;
     }
 
     Field_SetEmpty(&myField);
+    printf("\n");
     Field_Print(&myField);
 
     PlayerActionsHandler actions;
@@ -201,22 +252,46 @@ void Field_Print(Field* this) {
             if (this->PlayerCoord_y == i && this->PlayerCoord_x == x) {
                 switch (this->PlayerDirection) {
                     case UP:
-                        printf("%c ", '^');
+                        printf(c_CYAN "%c " c_RESET, '^');
                         break;
                     case DOWN:
-                        printf("%c ", 'v');
+                        printf(c_CYAN "%c " c_RESET, 'v');
                         break;
                     case LEFT:
-                        printf("%c ", '<');
+                        printf(c_CYAN "%c " c_RESET, '<');
                         break;
                     case RIGHT:
-                        printf("%c ", '>');
+                        printf(c_CYAN "%c " c_RESET, '>');
                         break;
                 }
 
                 this->PlayerStanding = this->ObjectMap[i][x];
             } else {
-                printf("%c ", this->ObjectMap[i][x]);
+                switch (this->ObjectMap[i][x]) {
+                    case 'R':
+                        printf(c_RED "%c " c_RESET, 'R');
+                        break;
+                    case 'G':
+                        printf(c_GREEN "%c " c_RESET, 'G');
+                        break;
+                    case 'Y':
+                        printf(c_YELLOW "%c " c_RESET, 'Y');
+                        break;
+                    case 'B':
+                        printf(c_BLUE "%c " c_RESET, 'B');
+                        break;
+                    case 'M':
+                        printf(c_MAGENTA "%c " c_RESET, 'M');
+                        break;
+                    case 'W':
+                        printf(c_WHITE "%c " c_RESET, "W");
+                        break;
+                    default:
+                        printf("%c ", this->ObjectMap[i][x]);
+                }
+                if (i == 0 && x == this->Width-1) {
+                    printf("  Under Player: \'" c_CYAN "%c" c_RESET "\'", this->PlayerStanding);
+                }
             }
         }
         printf("\n");
@@ -236,7 +311,7 @@ void Field_Free(Field* this) {
 PlayerActionsHandler Field_GetLiveInput(Field* this) {
     
     PlayerActionsHandler playeractions;
-    playeractions.color_if_needed = BLACK;
+    playeractions.color_if_needed = WHITE;
     playeractions.action = DO_NOTHING;
 
     char c;
