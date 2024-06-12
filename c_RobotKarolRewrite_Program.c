@@ -124,6 +124,12 @@ typedef struct PlayerActionsHandler {
     enum MarkerColor color_if_needed;
 } PlayerActionsHandler;
 
+typedef struct Position {
+    int x;
+    int y;
+    int is_valid;
+} Position;
+
 //Function declarations
 void Field_Init(Field* this, int Height, int Width);
 void Field_SetEmpty(Field* this); //Fills all positions with 0s
@@ -136,6 +142,8 @@ PlayerActionsHandler Field_GetLiveInput(Field* this); //GETS LIVE USER INPUT; SY
 void Field_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions); //CONTINUE HERE --> ADD MARKERS, WALLS, AND SHOW INFORMATION ON CURRENT BLOCK
 
 void do_character_check(PlayerActionsHandler* pah, char c);
+Position get_Infront(Field* this); //returns the position (in a new type format) infront of the player and returns if the position is valid or not
+Position get_Behind(Field* this); //same as get_Infront but for the backwards direction duh
 int movement_boundary_check(Field* this, char c);
 
 
@@ -154,6 +162,8 @@ int main(int argc, char** argv) {
     Mode myMode;
     int width = 0;
     int height = 0;
+
+    
 
     switch (argc) {
         case 3:
@@ -284,7 +294,7 @@ void Field_Print(Field* this) {
                         printf(c_MAGENTA "%c " c_RESET, 'M');
                         break;
                     case 'W':
-                        printf(c_WHITE "%c " c_RESET, "W");
+                        printf(c_WHITE "%c " c_RESET, 'W');
                         break;
                     default:
                         printf("%c ", this->ObjectMap[i][x]);
@@ -436,6 +446,31 @@ void Field_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions) 
                     break;
             }
             break;
+        case PLACE_MARKER:
+            Position infront = get_Infront(this);
+            if (infront.is_valid == 1) {
+                switch (playeractions.color_if_needed) {
+                    case RED:
+                        this->ObjectMap[infront.y][infront.x] = 'R';
+                        break;
+                    case GREEN:
+                        this->ObjectMap[infront.y][infront.x] = 'G';
+                        break;
+                    case YELLOW:
+                        this->ObjectMap[infront.y][infront.x] = 'Y';
+                        break;
+                    case BLUE:
+                        this->ObjectMap[infront.y][infront.x] = 'B';
+                        break;
+                    case WHITE:
+                        this->ObjectMap[infront.y][infront.x] = 'W';
+                        break;
+                    case MAGENTA:
+                        this->ObjectMap[infront.y][infront.x] = 'M';
+                        break;
+                }
+            }
+            break;
         default:
             break;
     }
@@ -458,6 +493,30 @@ void do_character_check(PlayerActionsHandler* pah, char c) {
         case 'q':
             pah->action = QUIT;
             break;
+        case 'm':
+            pah->action = PLACE_MARKER;
+            pah->color_if_needed = MAGENTA;
+            break;
+        case 'w':
+            pah->action = PLACE_MARKER;
+            pah->color_if_needed = WHITE;
+            break;
+        case 'b':
+            pah->action = PLACE_MARKER;
+            pah->color_if_needed = BLUE;
+            break;
+        case 'y':
+            pah->action = PLACE_MARKER;
+            pah->color_if_needed = YELLOW;
+            break;
+        case 'g':
+            pah->action = PLACE_MARKER;
+            pah->color_if_needed = GREEN;
+            break;
+        case 'r':
+            pah->action = PLACE_MARKER;
+            pah->color_if_needed = RED;
+            break;
         default:
             pah->action = DO_NOTHING;
             break;
@@ -472,4 +531,66 @@ void Field_Redraw(Field* this) {
         printf("\033[D");
     }
     Field_Print(this);
+}
+
+Position get_Infront(Field* this) {
+    Position return_position;
+
+    switch (this->PlayerDirection) {
+        case RIGHT:
+            return_position.x = this->PlayerCoord_x+1;
+            return_position.y = this->PlayerCoord_y;
+            if (this->PlayerCoord_x+1 < this->Width) {return_position.is_valid = 1;}
+            else {return_position.is_valid = 0;}
+            return return_position;
+        case LEFT:
+            return_position.x = this->PlayerCoord_x-1;
+            return_position.y = this->PlayerCoord_y;
+            if (this->PlayerCoord_x-1 >= 0) {return_position.is_valid = 1;}
+            else {return_position.is_valid = 0;}
+            return return_position;
+        case DOWN:
+            return_position.x = this->PlayerCoord_x;
+            return_position.y = this->PlayerCoord_y+1;
+            if (this->PlayerCoord_y+1 < this->Height) {return_position.is_valid = 1;}
+            else {return_position.is_valid = 0;}
+            return return_position;
+        case UP:
+            return_position.x = this->PlayerCoord_x;
+            return_position.y = this->PlayerCoord_y-1;
+            if (this->PlayerCoord_y-1 >= 0) {return_position.is_valid = 1;}
+            else {return_position.is_valid = 0;}
+            return return_position;
+    }
+}
+
+Position get_Behind(Field* this) {
+    Position return_position;
+
+    switch (this->PlayerDirection) {
+        case LEFT:
+            return_position.x = this->PlayerCoord_x+1;
+            return_position.y = this->PlayerCoord_y;
+            if (this->PlayerCoord_x+1 < this->Width) {return_position.is_valid = 1;}
+            else {return_position.is_valid = 0;}
+            return return_position;
+        case RIGHT:
+            return_position.x = this->PlayerCoord_x-1;
+            return_position.y = this->PlayerCoord_y;
+            if (this->PlayerCoord_x-1 >= 0) {return_position.is_valid = 1;}
+            else {return_position.is_valid = 0;}
+            return return_position;
+        case UP:
+            return_position.x = this->PlayerCoord_x;
+            return_position.y = this->PlayerCoord_y+1;
+            if (this->PlayerCoord_y+1 < this->Height) {return_position.is_valid = 1;}
+            else {return_position.is_valid = 0;}
+            return return_position;
+        case DOWN:
+            return_position.x = this->PlayerCoord_x;
+            return_position.y = this->PlayerCoord_y-1;
+            if (this->PlayerCoord_y-1 >= 0) {return_position.is_valid = 1;}
+            else {return_position.is_valid = 0;}
+            return return_position;
+    }
 }
