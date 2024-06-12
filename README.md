@@ -5,3 +5,8 @@ On (WINDOWS) you have to use mingw64 or something that can compile the program.
 It currently has support for player controls / movement, custom field size and ansi colors.
 + Added Markers. Incorrect implementation though, need to change placement location.
 Nothing else is currently implemented, this is very early in development.
+
+Critical errors:
+- No character checking for keybind assignment
+- A single character can be assigned to a multiple keybinds
+- Not checked for memory leaks or any other faulty coding, need to do that still quickly
