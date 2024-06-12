@@ -3,4 +3,5 @@ To compile this so it works on your system you can use (LINUX) "gcc -o robotkaro
 On (WINDOWS) you have to use mingw64 or something that can compile the program.
 
 It currently has support for player controls / movement, custom field size and ansi colors.
++ Added Markers. Incorrect implementation though, need to change placement location.
 Nothing else is currently implemented, this is very early in development.
