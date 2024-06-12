@@ -130,6 +130,20 @@ typedef struct Position {
     int is_valid;
 } Position;
 
+typedef struct InputAssignment {
+    char forward;
+    char backward;
+    char turn_left;
+    char turn_right;
+    char place_marker_red;
+    char place_marker_green;
+    char place_marker_yellow;
+    char place_marker_blue;
+    char place_marker_white;
+    char place_marker_magenta;
+    char quit;
+} InputAssignment;
+
 //Function declarations
 void Field_Init(Field* this, int Height, int Width);
 void Field_SetEmpty(Field* this); //Fills all positions with 0s
@@ -145,12 +159,14 @@ void do_character_check(PlayerActionsHandler* pah, char c);
 Position get_Infront(Field* this); //returns the position (in a new type format) infront of the player and returns if the position is valid or not
 Position get_Behind(Field* this); //same as get_Infront but for the backwards direction duh
 int movement_boundary_check(Field* this, char c);
+void setup_inputs(InputAssignment* inputassignment);
+void basic_linux_inputs(InputAssignment* inputassignment);
 
 
 
 // Main function start
 
-
+InputAssignment user_inputs;
 
 int main(int argc, char** argv) {
 
@@ -162,7 +178,6 @@ int main(int argc, char** argv) {
     Mode myMode;
     int width = 0;
     int height = 0;
-
     
 
     switch (argc) {
@@ -171,6 +186,7 @@ int main(int argc, char** argv) {
             height = atoi(argv[2]);
             Field_Init(&myField, height, width);
             myMode = PLAYERCONTROL;
+            basic_linux_inputs(&user_inputs);
             break;
         case 4:
             width = atoi(argv[1]);
@@ -180,15 +196,41 @@ int main(int argc, char** argv) {
             // EXPAND HERE
 
             myMode = FILECONTROL;
+            basic_linux_inputs(&user_inputs);
             break;
         case 1:
             Field_Init(&myField, 9, 16);
+            myMode = PLAYERCONTROL;
+            basic_linux_inputs(&user_inputs);
+            break;
+        case 2:
+            Field_Init(&myField, 9, 16);
+            myMode = PLAYERCONTROL;
+            setup_inputs(&user_inputs);
+            break;
+        case 6:
+            width = atoi(argv[1]);
+            height = atoi(argv[2]);
+            Field_Init(&myField, height, width);
+
+            setup_inputs(&user_inputs);
+
             myMode = FILECONTROL;
+            break;
+        case 5:
+            width = atoi(argv[1]);
+            height = atoi(argv[2]);
+            Field_Init(&myField, height, width);
+
+            setup_inputs(&user_inputs);
+
+            myMode = PLAYERCONTROL;
             break;
         default:
             printf("Invalid usage of program, type: robotkarolrewrite <width> <height> [optional file name for some_program.rkr]\n Loading Standard Field...\n");
             Field_Init(&myField, 9, 16);
             myMode = FILECONTROL;
+            basic_linux_inputs(&user_inputs);
             break;
     }
 
@@ -223,6 +265,45 @@ int main(int argc, char** argv) {
 
 
 //Function definitions
+void setup_inputs(InputAssignment* inputassignment) {
+    printf("Enter keybind for \"forward\": ");
+    scanf(" %c", &inputassignment->forward);
+    printf("Enter keybind for \"backward\": ");
+    scanf(" %c", &inputassignment->backward);
+    printf("Enter keybind for \"turn_left\": ");
+    scanf(" %c", &inputassignment->turn_left);
+    printf("Enter keybind for \"turn_right\": ");
+    scanf(" %c", &inputassignment->turn_right);
+    printf("Enter keybind for \"red\": ");
+    scanf(" %c", &inputassignment->place_marker_red);
+    printf("Enter keybind for \"green\": ");
+    scanf(" %c", &inputassignment->place_marker_green);
+    printf("Enter keybind for \"yellow\": ");
+    scanf(" %c", &inputassignment->place_marker_yellow);
+    printf("Enter keybind for \"blue\": ");
+    scanf(" %c", &inputassignment->place_marker_blue);
+    printf("Enter keybind for \"white\": ");
+    scanf(" %c", &inputassignment->place_marker_white);
+    printf("Enter keybind for \"magenta\": ");
+    scanf(" %c", &inputassignment->place_marker_magenta);
+    printf("Enter keybind for \"quit\": ");
+    scanf(" %c", &inputassignment->quit);
+}
+
+void basic_linux_inputs(InputAssignment* inputassignment) {
+    inputassignment->forward = 'i';
+    inputassignment->backward = 'k';
+    inputassignment->turn_left = 'j';
+    inputassignment->turn_right = 'l';
+    inputassignment->place_marker_red = 'r';
+    inputassignment->place_marker_green = 'g';
+    inputassignment->place_marker_yellow = 'y';
+    inputassignment->place_marker_blue = 'b';
+    inputassignment->place_marker_white = 'w';
+    inputassignment->place_marker_magenta = 'm';
+    inputassignment->quit = 'q';
+}
+
 void Field_Init(Field* this, int Height, int Width) {
     this->Height = Height;
     this->Width = Width;
@@ -447,28 +528,25 @@ void Field_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions) 
             }
             break;
         case PLACE_MARKER:
-            Position infront = get_Infront(this);
-            if (infront.is_valid == 1) {
-                switch (playeractions.color_if_needed) {
-                    case RED:
-                        this->ObjectMap[infront.y][infront.x] = 'R';
-                        break;
-                    case GREEN:
-                        this->ObjectMap[infront.y][infront.x] = 'G';
-                        break;
-                    case YELLOW:
-                        this->ObjectMap[infront.y][infront.x] = 'Y';
-                        break;
-                    case BLUE:
-                        this->ObjectMap[infront.y][infront.x] = 'B';
-                        break;
-                    case WHITE:
-                        this->ObjectMap[infront.y][infront.x] = 'W';
-                        break;
-                    case MAGENTA:
-                        this->ObjectMap[infront.y][infront.x] = 'M';
-                        break;
-                }
+            switch (playeractions.color_if_needed) {
+                case RED:
+                    this->ObjectMap[this->PlayerCoord_y][this->PlayerCoord_x] = 'R';
+                    break;
+                case GREEN:
+                    this->ObjectMap[this->PlayerCoord_y][this->PlayerCoord_x] = 'G';
+                    break;
+                case YELLOW:
+                    this->ObjectMap[this->PlayerCoord_y][this->PlayerCoord_x] = 'Y';
+                    break;
+                case BLUE:
+                    this->ObjectMap[this->PlayerCoord_y][this->PlayerCoord_x] = 'B';
+                    break;
+                case WHITE:
+                    this->ObjectMap[this->PlayerCoord_y][this->PlayerCoord_x] = 'W';
+                    break;
+                case MAGENTA:
+                    this->ObjectMap[this->PlayerCoord_y][this->PlayerCoord_x] = 'M';
+                    break;
             }
             break;
         default:
@@ -477,8 +555,8 @@ void Field_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions) 
 }
 
 void do_character_check(PlayerActionsHandler* pah, char c) {
-    switch (c) {
-        case ARROWKEYS_UP:
+    /*switch (c) {
+        case user_inputs.forward:
             pah->action = STEP;
             break;
         case ARROWKEYS_DOWN:
@@ -520,6 +598,38 @@ void do_character_check(PlayerActionsHandler* pah, char c) {
         default:
             pah->action = DO_NOTHING;
             break;
+    }*/
+
+    if (c == user_inputs.forward) {
+        pah->action = STEP;
+    } else if (c == user_inputs.backward) {
+        pah->action = STEP_BACK;
+    } else if (c == user_inputs.turn_left) {
+        pah->action = ROTATE_LEFT;
+    } else if (c == user_inputs.turn_right) {
+        pah->action = ROTATE_RIGHT;
+    } else if (c == user_inputs.quit) {
+        pah->action = QUIT;
+    } else if (c == user_inputs.place_marker_red) {
+        pah->action = PLACE_MARKER;
+        pah->color_if_needed = RED;
+    } else if (c == user_inputs.place_marker_green) {
+        pah->action = PLACE_MARKER;
+        pah->color_if_needed = GREEN;
+    } else if (c == user_inputs.place_marker_yellow) {
+        pah->action = PLACE_MARKER;
+        pah->color_if_needed = YELLOW;
+    } else if (c == user_inputs.place_marker_blue) {
+        pah->action = PLACE_MARKER;
+        pah->color_if_needed = BLUE;
+    } else if (c == user_inputs.place_marker_white) {
+        pah->action = PLACE_MARKER;
+        pah->color_if_needed = WHITE;
+    } else if (c == user_inputs.place_marker_magenta) {
+        pah->action = PLACE_MARKER;
+        pah->color_if_needed = MAGENTA;
+    } else {
+        pah->action = DO_NOTHING;
     }
 }
 
