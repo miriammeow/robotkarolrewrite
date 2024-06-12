@@ -416,6 +416,9 @@ PlayerActionsHandler Field_GetLiveInput(Field* this) {
             break;
         }
     }
+
+    return playeractions;
+    
     #else
 
     disableBufferedInput();
