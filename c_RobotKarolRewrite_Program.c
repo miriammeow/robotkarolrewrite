@@ -1,8 +1,3 @@
-#define ARROWKEYS_UP 'i'
-#define ARROWKEYS_DOWN 'k'
-#define ARROWKEYS_LEFT 'j'
-#define ARROWKEYS_RIGHT 'l'
-
 #define c_RESET   "\x1b[0m"
 #define c_RED     "\x1b[31m"
 #define c_GREEN   "\x1b[32m"
@@ -14,9 +9,12 @@
 
 //Instant Input Functionality Comes Here
 
-#ifdef _WIN32
+#ifdef _WIN32 //windows only
+
 #include <conio.h>
 #include <windows.h>
+
+// Function to enable Ansi Escape Codes under Windows for command prompt colors
 
 void enableAnsiEscapeCodes() {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -29,7 +27,8 @@ void enableAnsiEscapeCodes() {
     SetConsoleMode(hOut, dwMode);
 }
 
-#else
+#else //linux / unix only
+
 #include <unistd.h>
 #include <termios.h>
 
@@ -57,41 +56,46 @@ void enableBufferedInput() {
 
 Missing:
 - Error Checking for malloc and other problematic places
-- Player movement and rotation
-- Different Types of Objects and Player Reaction to these
-- Player block and marker placing
+- Fixing of unreadable & repeated code
+- Add Player block placing (number system for multiple stacked blocks)
+- Add Player Wall placement
+- Rewrite of the arguments handler in main() --> also put the arguments handler in functions
 
 */
 
 
 
-//Inclusions
+//Includes
+
 #include <stdio.h>
 #include <stdlib.h> //Required for memory allocation
 
 //enums
-typedef enum Mode {
-    PLAYERCONTROL,
-    FILECONTROL
+typedef enum Mode { //Specifies program launch options
+    PLAYERCONTROL_DEFAULT,
+    PLAYERCONTROL_CUSTOM_SIZE,
+    FILECONTROL_DEFAULT,
+    FILECONTROL_CUSTOM_SIZE
 } Mode;
 
-enum Direction { //Player Directions
+typedef enum Direction { //Player Directions
     RIGHT,
     DOWN,
     LEFT,
     UP
-};
+} Direction;
 
-enum MarkerColor {
+typedef enum MarkerColor { //Enum for the colors of a marker obj
     RED,
     GREEN,
     YELLOW,
     BLUE,
     WHITE,
-    MAGENTA
-};
+    MAGENTA,
+    NO_COLOR
+} MarkerColor;
 
-enum PlayerAction { //Player Actions
+typedef enum PlayerAction { //Player Actions
     STEP,
     STEP_BACK,
     ROTATE_RIGHT,
@@ -104,10 +108,10 @@ enum PlayerAction { //Player Actions
     BREAK_WALL,
     DO_NOTHING,
     QUIT
-};
+} PlayerAction;
 
 //structures
-typedef struct Field { //Field "type"
+typedef struct Field { //Field "type"; Everything Field-related; objs and player info
     int Height;
     int Width;
 
@@ -116,21 +120,21 @@ typedef struct Field { //Field "type"
     
     int PlayerCoord_x;
     int PlayerCoord_y;
-    enum Direction PlayerDirection;
+    Direction PlayerDirection;
 } Field;
 
-typedef struct PlayerActionsHandler {
-    enum PlayerAction action;
-    enum MarkerColor color_if_needed;
+typedef struct PlayerActionsHandler { //Passes playeractions and marker color to cmd-interpreter
+    PlayerAction action;
+    MarkerColor color_if_needed;
 } PlayerActionsHandler;
 
-typedef struct Position {
+typedef struct Position { //Simple position value holder; has a is_valid flag for position validity testing
     int x;
     int y;
     int is_valid;
 } Position;
 
-typedef struct InputAssignment {
+typedef struct InputAssignment { //CONTINUE HERE; USELESS, SHOULD BE REPLACE BY FILE READING FOR INPUTS
     char forward;
     char backward;
     char turn_left;
@@ -145,73 +149,93 @@ typedef struct InputAssignment {
 } InputAssignment;
 
 //Function declarations
-void Field_Init(Field* this, int Height, int Width);
-void Field_SetEmpty(Field* this); //Fills all positions with 0s
-void Field_PrintOnlyField(Field* this); //Leaves out player location and direction calculation when printing
-void Field_Print(Field* this); //Prints the whole
-void Field_Redraw(Field* this); //Instead of printing the field, it updates the currently drawn field. NOT IMPLEMENTED
-void Field_Free(Field* this); //Frees memory of Field malloc
 
-PlayerActionsHandler Field_GetLiveInput(Field* this); //GETS LIVE USER INPUT; SYSTEM INDEPENDENT;
-void Field_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions); //CONTINUE HERE --> ADD MARKERS, WALLS, AND SHOW INFORMATION ON CURRENT BLOCK
+//Field Generation/Management
+void FieldGen_init(Field* this, int Height, int Width); //Initializes a newly created Field (Should always be run before using the Field)
+void FieldGen_SetEmpty(Field* this); //Fills all positions with '0's (char type)
+void FieldGen_Free(Field* this); //Frees memory of Field memory allocation
+Mode GetProgramMode(int argc, char** argv); //Returns a mode set by user arguments
+void SetupProgramLaunchOptions(Field* myField, Mode myMode, char** argv); //Sets all necessary option-variables using the Mode obj
 
-void do_character_check(PlayerActionsHandler* pah, char c);
-Position get_Infront(Field* this); //returns the position (in a new type format) infront of the player and returns if the position is valid or not
-Position get_Behind(Field* this); //same as get_Infront but for the backwards direction duh
-int movement_boundary_check(Field* this, char c);
+
+//Field Drawing
+void FieldDraw_PrintOnlyField(Field* this); //Leaves out player location and direction calculation when printing
+void FieldDraw_Print(Field* this); //Prints the screen as well as the player location (Use this almost always)
+void FieldDraw_Redraw(Field* this); //Redraws the current Field in place of the old one. Depends on FieldDraw_Print()
+
+//Player Action Management
+PlayerActionsHandler PAM_GetLiveInput(Field* this); //GETS LIVE USER INPUT; SYSTEM INDEPENDENT;
+void PAM_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions); //CONTINUE HERE --> ADD WALLS AND BLOCKS
+
+//Player Movement Checks
+Position PMC_GetInfront(Field* this); //returns the position (in a new type format) infront of the player and returns if the position is valid or not
+Position PMC_GetBehind(Field* this); //same as PMC_GetInfront but for the backwards direction duh
+int PMC_MovementBoundaryCheck(Field* this, char c);
+
+//User-Input Management
+void UIM_CheckCharInputs(PlayerActionsHandler* pah, char c);
+
+//Deprecated
 void setup_inputs(InputAssignment* inputassignment);
-void basic_linux_inputs(InputAssignment* inputassignment);
+void basic_inputs(InputAssignment* inputassignment);
+
+//Global Variables Assignment
+InputAssignment user_inputs;
 
 
 
 // Main function start
 
-InputAssignment user_inputs;
+
 
 int main(int argc, char** argv) {
 
+    //Enables AnsiEscapeCodes if the _WIN32 API is found
     #ifdef _WIN32
     enableAnsiEscapeCodes();
     #endif
     
     Field myField;
     Mode myMode;
-    int width = 0;
-    int height = 0;
-    
+    //int width = 0;
+    //int height = 0;
 
-    switch (argc) {
+    //Sets the launch options to the user-specified values
+    myMode = GetProgramMode(argc, argv);
+    SetupProgramLaunchOptions(&myField, myMode, argv); //ACTUALLY CONTINUE HERE TBH
+
+    /*switch (argc) {
         case 3:
             width = atoi(argv[1]);
             height = atoi(argv[2]);
-            Field_Init(&myField, height, width);
+            FieldGen_init(&myField, height, width);
             myMode = PLAYERCONTROL;
-            basic_linux_inputs(&user_inputs);
+            basic_inputs(&user_inputs);
             break;
         case 4:
             width = atoi(argv[1]);
             height = atoi(argv[2]);
-            Field_Init(&myField, height, width);
+            FieldGen_init(&myField, height, width);
 
             // EXPAND HERE
 
             myMode = FILECONTROL;
-            basic_linux_inputs(&user_inputs);
+            basic_inputs(&user_inputs);
             break;
         case 1:
-            Field_Init(&myField, 9, 16);
+            FieldGen_init(&myField, 9, 16);
             myMode = PLAYERCONTROL;
-            basic_linux_inputs(&user_inputs);
+            basic_inputs(&user_inputs);
             break;
         case 2:
-            Field_Init(&myField, 9, 16);
+            FieldGen_init(&myField, 9, 16);
             myMode = PLAYERCONTROL;
             setup_inputs(&user_inputs);
             break;
         case 6:
             width = atoi(argv[1]);
             height = atoi(argv[2]);
-            Field_Init(&myField, height, width);
+            FieldGen_init(&myField, height, width);
 
             setup_inputs(&user_inputs);
 
@@ -220,7 +244,7 @@ int main(int argc, char** argv) {
         case 5:
             width = atoi(argv[1]);
             height = atoi(argv[2]);
-            Field_Init(&myField, height, width);
+            FieldGen_init(&myField, height, width);
 
             setup_inputs(&user_inputs);
 
@@ -228,32 +252,32 @@ int main(int argc, char** argv) {
             break;
         default:
             printf("Invalid usage of program, type: robotkarolrewrite <width> <height> [optional file name for some_program.rkr]\n Loading Standard Field...\n");
-            Field_Init(&myField, 9, 16);
+            FieldGen_init(&myField, 9, 16);
             myMode = FILECONTROL;
-            basic_linux_inputs(&user_inputs);
+            basic_inputs(&user_inputs);
             break;
     }
+    */
 
-    Field_SetEmpty(&myField);
+    FieldGen_SetEmpty(&myField); //Temporary
     printf("\n");
-    Field_Print(&myField);
+    FieldDraw_Print(&myField); //Initial print of the screen
 
     PlayerActionsHandler actions;
 
     while (1==1) {
 
-        actions = Field_GetLiveInput(&myField);
+        actions = PAM_GetLiveInput(&myField);
+
         if (actions.action == QUIT) {
             break;
         }
-        Field_PerformPlayerAction(&myField, actions);
 
-        Field_Redraw(&myField);
-
+        PAM_PerformPlayerAction(&myField, actions);
+        FieldDraw_Redraw(&myField);
     }
 
-    Field_Free(&myField);
-
+    FieldGen_Free(&myField); //"Deletes" the Field myField obj
     /////////
     return 0;
 }
@@ -265,6 +289,57 @@ int main(int argc, char** argv) {
 
 
 //Function definitions
+Mode GetProgramMode(int argc, char** argv) {
+    Mode return_mode = PLAYERCONTROL_DEFAULT;
+    switch (argc) {
+        case 1:
+            break;
+        case 2:
+            if (argv[1] != "-d") {printf("Error! \"2\" is not a valid argument!", argv[1]); break;}
+            break;
+        case 3:
+            if (argv[1] != "-f") {printf("Error! \"3\" is not a valid argument!", argv[1]); break;}
+            return_mode = FILECONTROL_DEFAULT; break;
+        case 4:
+            if (argv[1] != "-c\0") {printf("Error! \"4\" is not a valid argument!", argv[1]); break;}
+            for (int x = 0; x != '\0' && x != '\r' && x != '\n'; x++) {if (argv[2][x] < 48 || argv[2][x] > 57) {printf("Error! \"%s\" is not a valid argument!", argv[2]); break;}}
+            for (int x = 0; x != '\0' && x != '\r' && x != '\n'; x++) {if (argv[3][x] < 48 || argv[3][x] > 57) {printf("Error! \"%s\" is not a valid argument!", argv[3]); break;}}
+            return_mode = PLAYERCONTROL_CUSTOM_SIZE; break;
+        case 5:
+            if (argv[1] != "-fc") {printf("Error! \"5\" is not a valid argument!", argv[1]); break;}
+            for (int x = 0; x != '\0' && x != '\r' && x != '\n'; x++) {if (argv[3][x] < 48 || argv[3][x] > 57) {printf("Error! \"%s\" is not a valid argument!", argv[3]); break;}}
+            for (int x = 0; x != '\0' && x != '\r' && x != '\n'; x++) {if (argv[4][x] < 48 || argv[4][x] > 57) {printf("Error! \"%s\" is not a valid argument!", argv[4]); break;}} //FIX THIS
+            return_mode = PLAYERCONTROL_CUSTOM_SIZE; break;
+    }
+
+    return return_mode;
+}
+
+void SetupProgramLaunchOptions(Field* myField, Mode myMode, char** argv) {
+    switch (myMode) {
+        case PLAYERCONTROL_DEFAULT:
+            FieldGen_init(myField, 9, 16);
+            basic_inputs(&user_inputs);
+            break;
+        case PLAYERCONTROL_CUSTOM_SIZE:
+            FieldGen_init(myField, atoi(argv[3]), atoi(argv[2]));
+            basic_inputs(&user_inputs);
+            break;
+        case FILECONTROL_DEFAULT:
+            //NOTHING CURRENTLY; SHOULD LOAD FILE EVENTUALLY
+
+            FieldGen_init(myField, 9, 16);
+            basic_inputs(&user_inputs);
+            break;
+        case FILECONTROL_CUSTOM_SIZE:
+            //NOTHING CURRENTLY; SHOULD LOAD CUSTOM SIZED FIELD AND FILE EVENTUALLY
+
+            FieldGen_init(myField, atoi(argv[4]), atoi(argv[3]));
+            basic_inputs(&user_inputs);
+            break;
+    }
+}
+
 void setup_inputs(InputAssignment* inputassignment) {
     printf("Enter keybind for \"forward\": ");
     scanf(" %c", &inputassignment->forward);
@@ -290,7 +365,7 @@ void setup_inputs(InputAssignment* inputassignment) {
     scanf(" %c", &inputassignment->quit);
 }
 
-void basic_linux_inputs(InputAssignment* inputassignment) {
+void basic_inputs(InputAssignment* inputassignment) {
     inputassignment->forward = 'i';
     inputassignment->backward = 'k';
     inputassignment->turn_left = 'j';
@@ -304,7 +379,7 @@ void basic_linux_inputs(InputAssignment* inputassignment) {
     inputassignment->quit = 'q';
 }
 
-void Field_Init(Field* this, int Height, int Width) {
+void FieldGen_init(Field* this, int Height, int Width) {
     this->Height = Height;
     this->Width = Width;
 
@@ -320,7 +395,7 @@ void Field_Init(Field* this, int Height, int Width) {
     this->PlayerStanding = '0';
 }
 
-void Field_SetEmpty(Field* this) {
+void FieldGen_SetEmpty(Field* this) {
     for (int i = 0; i < this->Height; i++) {
         for (int x = 0; x < this->Width; x++) {
             this->ObjectMap[i][x] = '0';
@@ -328,7 +403,7 @@ void Field_SetEmpty(Field* this) {
     }
 }
 
-void Field_PrintOnlyField(Field* this) {
+void FieldDraw_PrintOnlyField(Field* this) {
     for (int i = 0; i < this->Height; i++) {
         for (int x = 0; x < this->Width; x++) {
             printf("%c ", this->ObjectMap[i][x]);
@@ -337,7 +412,7 @@ void Field_PrintOnlyField(Field* this) {
     }
 }
 
-void Field_Print(Field* this) {
+void FieldDraw_Print(Field* this) {
     for (int i = 0; i < this->Height; i++) {
         for (int x = 0; x < this->Width; x++) {
             if (this->PlayerCoord_y == i && this->PlayerCoord_x == x) {
@@ -389,7 +464,7 @@ void Field_Print(Field* this) {
     }
 }
 
-void Field_Free(Field* this) {
+void FieldGen_Free(Field* this) {
     for (int i = 0; i < this->Height; i++) {
         free(this->ObjectMap[i]);
         this->ObjectMap[i] = NULL;
@@ -399,10 +474,10 @@ void Field_Free(Field* this) {
     this->ObjectMap = NULL;
 }
 
-PlayerActionsHandler Field_GetLiveInput(Field* this) {
+PlayerActionsHandler PAM_GetLiveInput(Field* this) {
     
     PlayerActionsHandler playeractions;
-    playeractions.color_if_needed = WHITE;
+    playeractions.color_if_needed = NO_COLOR;
     playeractions.action = DO_NOTHING;
 
     char c;
@@ -412,7 +487,7 @@ PlayerActionsHandler Field_GetLiveInput(Field* this) {
     while (1) {
         c = _getch();
         if (c != 27 && c != 91) {
-            do_character_check(&playeractions, c);
+            UIM_CheckCharInputs(&playeractions, c);
             break;
         }
     }
@@ -425,7 +500,7 @@ PlayerActionsHandler Field_GetLiveInput(Field* this) {
     while (1) {
         c = getchar();
         if (c != 27 && c != 91) {
-            do_character_check(&playeractions, c);
+            UIM_CheckCharInputs(&playeractions, c);
             break;
         }
     }
@@ -437,7 +512,7 @@ PlayerActionsHandler Field_GetLiveInput(Field* this) {
     #endif
 }
 
-int movement_boundary_check(Field* this, char fob) {
+int PMC_MovementBoundaryCheck(Field* this, char fob) {
     switch (this->PlayerDirection) {
         case RIGHT:
             if (this->PlayerCoord_x + 1 < this->Width && fob == 'f') {return 1;}
@@ -460,10 +535,10 @@ int movement_boundary_check(Field* this, char fob) {
     return 0;
 }
 
-void Field_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions) {
+void PAM_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions) {
     switch (playeractions.action) {
         case STEP:
-            if (movement_boundary_check(this, 'f') == 1) {
+            if (PMC_MovementBoundaryCheck(this, 'f') == 1) {
                 switch (this->PlayerDirection) {
                     case UP:
                         this->PlayerCoord_y--;
@@ -481,7 +556,7 @@ void Field_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions) 
             }
             break;
         case STEP_BACK:
-            if (movement_boundary_check(this, 'b') == 1) {
+            if (PMC_MovementBoundaryCheck(this, 'b') == 1) {
                 switch (this->PlayerDirection) {
                     case UP:
                         this->PlayerCoord_y++;
@@ -557,7 +632,7 @@ void Field_PerformPlayerAction(Field* this, PlayerActionsHandler playeractions) 
     }
 }
 
-void do_character_check(PlayerActionsHandler* pah, char c) {
+void UIM_CheckCharInputs(PlayerActionsHandler* pah, char c) {
     /*switch (c) {
         case user_inputs.forward:
             pah->action = STEP;
@@ -636,17 +711,17 @@ void do_character_check(PlayerActionsHandler* pah, char c) {
     }
 }
 
-void Field_Redraw(Field* this) {
+void FieldDraw_Redraw(Field* this) {
     for (int i = 0; i < this->Height; i++) {
         printf("\033[A");
     }
     for (int x = 0; x < this->Width-1; x++) {
         printf("\033[D");
     }
-    Field_Print(this);
+    FieldDraw_Print(this);
 }
 
-Position get_Infront(Field* this) {
+Position PMC_GetInfront(Field* this) {
     Position return_position;
 
     switch (this->PlayerDirection) {
@@ -677,7 +752,7 @@ Position get_Infront(Field* this) {
     }
 }
 
-Position get_Behind(Field* this) {
+Position PMC_GetBehind(Field* this) {
     Position return_position;
 
     switch (this->PlayerDirection) {
